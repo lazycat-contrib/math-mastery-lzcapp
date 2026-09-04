@@ -1,0 +1,83 @@
+name: Update upstream source
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-math-mastery-upstream
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout wrapper and upstream
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Update pinned upstream commit
+        id: update
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          before=$(git -C upstream rev-parse HEAD)
+          git -C upstream fetch --depth=1 origin master
+          after=$(git -C upstream rev-parse FETCH_HEAD)
+
+          if [[ "$before" == "$after" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream is already current at $before"
+            exit 0
+          fi
+
+          git -C upstream checkout --detach "$after"
+
+          current_version=$(sed -nE 's/^version:[[:space:]]+([^[:space:]#]+).*$/\1/p' package.yml)
+          if [[ ! "$current_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "package.yml version must be stable SemVer" >&2
+            exit 1
+          fi
+          next_version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+
+          awk -v version="$next_version" '
+            !updated && /^version:/ { print "version: " version; updated=1; next }
+            { print }
+            END { if (!updated) exit 1 }
+          ' package.yml > package.yml.next
+          mv package.yml.next package.yml
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+          echo "after=$after" >> "$GITHUB_OUTPUT"
+          echo "before_short=${before:0:12}" >> "$GITHUB_OUTPUT"
+          echo "after_short=${after:0:12}" >> "$GITHUB_OUTPUT"
+          echo "version=$next_version" >> "$GITHUB_OUTPUT"
+
+      - name: Create upstream update pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/update-math-mastery-upstream
+          delete-branch: true
+          commit-message: "chore: update upstream to ${{ steps.update.outputs.after_short }}"
+          title: "chore: update math-mastery to ${{ steps.update.outputs.after_short }}"
+          body: |
+            Updates the pinned math-mastery source.
+
+            - Upstream: `${{ steps.update.outputs.before_short }}` → `${{ steps.update.outputs.after_short }}`
+            - Package version: `${{ steps.update.outputs.version }}`
+
+            After review and merge, push tag `v${{ steps.update.outputs.version }}` to publish the verified LPK.
+          add-paths: |
+            upstream
+            package.yml

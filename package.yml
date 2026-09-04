@@ -1,0 +1,16 @@
+package: community.lazycat.app.math-mastery
+version: 1.0.0
+name: 中小学数学方法融会贯通
+description: 离线可用的中小学数学方法学习与练习应用
+author: kenowong
+license: MIT
+homepage: https://github.com/kenowong/math-mastery
+min_os_version: 1.5.0
+
+locales:
+  zh:
+    name: 中小学数学方法融会贯通
+    description: 离线可用的中小学数学方法学习与练习应用
+  en:
+    name: Math Mastery
+    description: An offline-ready learning and practice app for primary and secondary mathematics

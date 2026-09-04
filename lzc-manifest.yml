@@ -1,0 +1,8 @@
+application:
+  subdomain: math-mastery
+  public_path:
+    - /
+  routes:
+    - /=file:///lzcapp/pkg/content/
+
+usage: 打开应用即可按年级学习数学方法、随机练习并复习薄弱点；学习进度保存在当前浏览器中。
